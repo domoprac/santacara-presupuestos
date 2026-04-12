@@ -1,61 +1,51 @@
 import streamlit as st
 from agentes import AgenteNavarra
 
-# Configuración inicial
 st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡", layout="wide")
 
-st.title("🏡 Rehabilitación Casa del Médico - Santacara")
-st.markdown("Esta herramienta conecta con el **Catastro de Navarra** y el repositorio de precios de **Domoprac**.")
+st.title("🏡 Buscador de Ayudas - Catastro de Navarra")
 st.markdown("---")
 
-# --- SIDEBAR: DATOS Y BÚSQUEDA ---
-st.sidebar.header("🔍 Localización Catastral")
-ref_catastral = st.sidebar.text_input("Referencia Catastral (Ej: 220-7-1097)", value="220-7-1097")
+# --- SIDEBAR: BUSCADOR REAL ---
+st.sidebar.header("🔍 Identificación de la Finca")
+st.sidebar.info("Introduce los códigos de Tracasa")
 
-# Construcción de la URL de Tracasa
-url_tracasa = f"https://catastro.navarra.es/ref_catastral/unidades.aspx?C=220&PO=7&PA=1097&lang=es"
+# Datos por defecto de la Casa del Médico
+cod_muni = st.sidebar.text_input("Código Municipio (Santacara = 220)", value="220")
+poligono = st.sidebar.text_input("Polígono", value="7")
+parcela = st.sidebar.text_input("Parcela", value="1097")
 
-if st.sidebar.button("🔍 Consultar Tracasa"):
-    with st.spinner("El Agente está consultando el Catastro..."):
-        agente_prov = AgenteNavarra({})
-        m2_catastro = agente_prov.obtener_superficie_catastro(url_tracasa)
-        st.session_state['m2_actual'] = m2_catastro
-        st.sidebar.success(f"¡Datos extraídos! Superficie: {m2_catastro} m2")
+if st.sidebar.button("🔍 Consultar Superficie"):
+    with st.spinner("El Agente está accediendo a Tracasa..."):
+        agente_temp = AgenteNavarra({})
+        # Le pasamos los datos que has escrito en los cuadros
+        m2_detectados = agente_temp.obtener_superficie_catastro(cod_muni, poligono, parcela)
+        st.session_state['m2_app'] = m2_detectados
+        st.sidebar.success(f"Detectados: {m2_detectados} m2")
 
-# Ajuste manual de m2
-m2_final = st.sidebar.number_input("Superficie útil para cálculo (m2)", 
-                                   value=st.session_state.get('m2_actual', 110.0))
+# Valor final para el cálculo
+m2 = st.sidebar.number_input("Metros cuadrados confirmados", value=st.session_state.get('m2_app', 110.0))
 
-st.sidebar.subheader("Eficiencia Energética")
-l_actual = st.sidebar.selectbox("Letra Actual", ["G", "F", "E", "D", "C"], index=2)
-l_objetivo = st.sidebar.selectbox("Letra tras Reforma", ["A", "B", "C"], index=0)
-placas = st.sidebar.checkbox("Incluir Placas Fotovoltaicas", value=True)
+st.sidebar.subheader("Reforma prevista")
+l_act = st.sidebar.selectbox("Eficiencia Actual", ["G", "F", "E", "D", "C"], index=2)
+l_obj = st.sidebar.selectbox("Eficiencia Objetivo", ["A", "B", "C"], index=0)
+placas = st.sidebar.checkbox("¿Instalará Placas?", value=True)
 
-# --- PROCESAMIENTO CON EL AGENTE ---
-datos_vivienda = {
-    "letra_actual": l_actual,
-    "letra_objetivo": l_objetivo,
-    "placas": placas
-}
+# --- CÁLCULOS ---
+datos_obra = {"letra_actual": l_act, "letra_objetivo": l_obj, "placas": placas}
+agente = AgenteNavarra(datos_obra)
 
-agente = AgenteNavarra(datos_vivienda)
 precio_m2 = agente.obtener_precio_referencia()
-presupuesto_total = m2_final * precio_m2
+total_obra = m2 * precio_m2
+ayuda_total, desglose = agente.calcular_subvenciones(total_obra)
 
-subvencion, desglose = agente.calcular_subvenciones(presupuesto_total)
-coste_ayuntamiento = presupuesto_total - subvencion
-
-# --- PANEL DE RESULTADOS ---
-c1, c2, c3 = st.columns(3)
+# --- RESULTADOS ---
+c1, c2 = st.columns(2)
 with c1:
-    st.metric("Presupuesto Estimado", f"{presupuesto_total:,.2f}€")
+    st.metric("Presupuesto de Obra", f"{total_obra:,.2f}€")
 with c2:
-    st.metric("Total Subvenciones", f"-{subvencion:,.2f}€", delta_color="normal")
-with c3:
-    st.metric("Inversión Neta Final", f"{coste_ayuntamiento:,.2f}€")
+    st.metric("Coste tras Subvenciones", f"{total_obra - ayuda_total:,.2f}€", delta=f"-{ayuda_total:,.2f}€")
 
-st.write("### 📄 Informe Detallado del Agente")
-for item in desglose:
-    st.info(f"**{item['nombre']}**: {item['monto']:,.2f}€  \n*{item['razon']}*")
-
-st.warning("⚠️ **Nota:** Los datos de superficie se obtienen por defecto de la unidad urbana seleccionada en Tracasa. Verifique la cédula parcelaria para datos exactos.")
+st.write("### 📝 Desglose del Agente")
+for d in desglose:
+    st.info(f"**{d['nombre']}**: {d['monto']:,.2f}€ ({d['razon']})")
