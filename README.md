@@ -1,51 +1,29 @@
-import streamlit as st
-from agentes import AgenteNavarra
+# 🏡 Santacara Sostenible: Agente de Rehabilitación Energética
 
-st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡", layout="wide")
+Este proyecto despliega una aplicación web interactiva diseñada para la gestión técnica y económica de la rehabilitación de edificios municipales en **Santacara (Navarra)**, con especial foco en la **Casa del Médico**.
 
-st.title("🏡 Buscador de Ayudas - Catastro de Navarra")
-st.markdown("---")
+## 🚀 Funcionalidades Clave
 
-# --- SIDEBAR: BUSCADOR REAL ---
-st.sidebar.header("🔍 Identificación de la Finca")
-st.sidebar.info("Introduce los códigos de Tracasa")
+* **Agente Inteligente de Subvenciones:** Implementa una lógica basada en la normativa de Navarra (PREE 5000 / Fondos NextGen) para calcular ayudas de hasta el 70% según el salto en la certificación energética (Letra G/E -> A/B).
+* **Conexión con Repositorio de Precios:** El sistema consulta en tiempo real un archivo de referencia en el repositorio de **Domoprac** para aplicar costes de mercado actualizados por m².
+* **Integración con Catastro (Tracasa):** Incluye un módulo de consulta dinámica al portal de Catastro de Navarra para la verificación de superficies por municipio, polígono y parcela.
+* **Interfaz de Usuario con Streamlit:** Dashboard intuitivo que permite realizar simulaciones de inversión bruta vs. inversión neta tras ayudas.
 
-# Datos por defecto de la Casa del Médico
-cod_muni = st.sidebar.text_input("Código Municipio (Santacara = 220)", value="220")
-poligono = st.sidebar.text_input("Polígono", value="7")
-parcela = st.sidebar.text_input("Parcela", value="1097")
+## 🛠️ Arquitectura Técnica
 
-if st.sidebar.button("🔍 Consultar Superficie"):
-    with st.spinner("El Agente está accediendo a Tracasa..."):
-        agente_temp = AgenteNavarra({})
-        # Le pasamos los datos que has escrito en los cuadros
-        m2_detectados = agente_temp.obtener_superficie_catastro(cod_muni, poligono, parcela)
-        st.session_state['m2_app'] = m2_detectados
-        st.sidebar.success(f"Detectados: {m2_detectados} m2")
+El ecosistema se basa en una estructura de micro-servicios desacoplados:
 
-# Valor final para el cálculo
-m2 = st.sidebar.number_input("Metros cuadrados confirmados", value=st.session_state.get('m2_app', 110.0))
+1.  **Frontend:** `app.py` (Streamlit Cloud).
+2.  **Lógica de Negocio:** `agentes.py` (Clase Python `AgenteNavarra`).
+3.  **Fuentes de Datos Externas:**
+    * **GitHub Raw:** Para la obtención de costes base.
+    * **Web Scraping (BeautifulSoup4):** Para la extracción de datos desde el portal oficial de Tracasa.
 
-st.sidebar.subheader("Reforma prevista")
-l_act = st.sidebar.selectbox("Eficiencia Actual", ["G", "F", "E", "D", "C"], index=2)
-l_obj = st.sidebar.selectbox("Eficiencia Objetivo", ["A", "B", "C"], index=0)
-placas = st.sidebar.checkbox("¿Instalará Placas?", value=True)
+## 📦 Instalación y Uso Local
 
-# --- CÁLCULOS ---
-datos_obra = {"letra_actual": l_act, "letra_objetivo": l_obj, "placas": placas}
-agente = AgenteNavarra(datos_obra)
+Si deseas ejecutar este proyecto en tu ordenador, sigue estos pasos:
 
-precio_m2 = agente.obtener_precio_referencia()
-total_obra = m2 * precio_m2
-ayuda_total, desglose = agente.calcular_subvenciones(total_obra)
-
-# --- RESULTADOS ---
-c1, c2 = st.columns(2)
-with c1:
-    st.metric("Presupuesto de Obra", f"{total_obra:,.2f}€")
-with c2:
-    st.metric("Coste tras Subvenciones", f"{total_obra - ayuda_total:,.2f}€", delta=f"-{ayuda_total:,.2f}€")
-
-st.write("### 📝 Desglose del Agente")
-for d in desglose:
-    st.info(f"**{d['nombre']}**: {d['monto']:,.2f}€ ({d['razon']})")
+1. Clonar el repositorio.
+2. Instalar las dependencias necesarias:
+   ```bash
+   pip install streamlit requests beautifulsoup4
