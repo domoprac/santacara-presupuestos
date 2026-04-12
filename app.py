@@ -1,67 +1,61 @@
 import streamlit as st
 from agentes import AgenteNavarra
 
-# 1. Configuración de la página - SIEMPRE DEBE SER LA PRIMERA LÍNEA DE STREAMLIT
-st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡")
+# Configuración inicial
+st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡", layout="wide")
 
 st.title("🏡 Rehabilitación Casa del Médico - Santacara")
+st.markdown("Esta herramienta conecta con el **Catastro de Navarra** y el repositorio de precios de **Domoprac**.")
 st.markdown("---")
 
-# --- SIDEBAR: VARIABLES TÉCNICAS ---
-st.sidebar.header("📊 Datos de la Vivienda")
+# --- SIDEBAR: DATOS Y BÚSQUEDA ---
+st.sidebar.header("🔍 Localización Catastral")
+ref_catastral = st.sidebar.text_input("Referencia Catastral (Ej: 220-7-1097)", value="220-7-1097")
 
-# URL de Tracasa (Catastro)
-url_catastro = "https://catastro.navarra.es/ref_catastral/unidades.aspx?C=220&PO=7&PA=1097&lang=es"
+# Construcción de la URL de Tracasa
+url_tracasa = f"https://catastro.navarra.es/ref_catastral/unidades.aspx?C=220&PO=7&PA=1097&lang=es"
 
-# Botón para que el Agente lea Tracasa
-if st.sidebar.button("🔍 Consultar Catastro (Tracasa)"):
-    # Agente temporal para los m2
-    agente_busqueda = AgenteNavarra({})
-    m2_detectados = agente_busqueda.obtener_superficie_catastro(url_catastro)
-    st.session_state['m2_valor'] = m2_detectados
-    st.sidebar.success(f"Catastro leído: {m2_detectados} m2")
+if st.sidebar.button("🔍 Consultar Tracasa"):
+    with st.spinner("El Agente está consultando el Catastro..."):
+        agente_prov = AgenteNavarra({})
+        m2_catastro = agente_prov.obtener_superficie_catastro(url_tracasa)
+        st.session_state['m2_actual'] = m2_catastro
+        st.sidebar.success(f"¡Datos extraídos! Superficie: {m2_catastro} m2")
 
-# Definir el valor de m2
-valor_inicial = st.session_state.get('m2_valor', 110.0)
-m2 = st.sidebar.number_input("Superficie útil (m2)", value=valor_inicial)
+# Ajuste manual de m2
+m2_final = st.sidebar.number_input("Superficie útil para cálculo (m2)", 
+                                   value=st.session_state.get('m2_actual', 110.0))
 
-st.sidebar.subheader("Certificación Energética")
-letra_actual = st.sidebar.selectbox("Letra Actual", ["G", "F", "E", "D", "C"], index=2)
-letra_objetivo = st.sidebar.selectbox("Letra tras Reforma", ["A", "B", "C"], index=0)
+st.sidebar.subheader("Eficiencia Energética")
+l_actual = st.sidebar.selectbox("Letra Actual", ["G", "F", "E", "D", "C"], index=2)
+l_objetivo = st.sidebar.selectbox("Letra tras Reforma", ["A", "B", "C"], index=0)
+placas = st.sidebar.checkbox("Incluir Placas Fotovoltaicas", value=True)
 
-st.sidebar.subheader("Sistemas a Instalar")
-tiene_placas = st.sidebar.checkbox("Fotovoltaica + Baterías", value=True)
-
-# --- LÓGICA CON EL AGENTE ---
+# --- PROCESAMIENTO CON EL AGENTE ---
 datos_vivienda = {
-    "letra_actual": letra_actual,
-    "letra_objetivo": letra_objetivo,
-    "placas": tiene_placas
+    "letra_actual": l_actual,
+    "letra_objetivo": l_objetivo,
+    "placas": placas
 }
 
 agente = AgenteNavarra(datos_vivienda)
+precio_m2 = agente.obtener_precio_referencia()
+presupuesto_total = m2_final * precio_m2
 
-# Obtener precio del repo de Domoprac
-precio_m2_real = agente.obtener_precio_referencia()
-presupuesto_obra = m2 * precio_m2_real
+subvencion, desglose = agente.calcular_subvenciones(presupuesto_total)
+coste_ayuntamiento = presupuesto_total - subvencion
 
-# Calcular subvenciones
-ahorro_total, detalles = agente.calcular_subvenciones(presupuesto_obra)
-coste_final = presupuesto_obra - ahorro_total
+# --- PANEL DE RESULTADOS ---
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.metric("Presupuesto Estimado", f"{presupuesto_total:,.2f}€")
+with c2:
+    st.metric("Total Subvenciones", f"-{subvencion:,.2f}€", delta_color="normal")
+with c3:
+    st.metric("Inversión Neta Final", f"{coste_ayuntamiento:,.2f}€")
 
-# --- INTERFAZ DE RESULTADOS ---
-col1, col2 = st.columns(2)
-with col1:
-    st.metric("Inversión Bruta", f"{presupuesto_obra:,.2f}€")
-    st.caption(f"Precio m²: {precio_m2_real:,.2f}€")
+st.write("### 📄 Informe Detallado del Agente")
+for item in desglose:
+    st.info(f"**{item['nombre']}**: {item['monto']:,.2f}€  \n*{item['razon']}*")
 
-with col2:
-    st.metric("Coste Neto Ayuntamiento", f"{coste_final:,.2f}€", 
-              delta=f"-{ahorro_total:,.2f}€ Ayudas", delta_color="normal")
-
-st.write("### 📝 Informe del Agente (Navarra)")
-for d in detalles:
-    st.info(f"**{d['nombre']}**: {d['monto']:,.2f}€ - {d['razon']}")
-
-st.markdown("---")
-st.caption("Conectado a Tracasa y Domoprac.")
+st.warning("⚠️ **Nota:** Los datos de superficie se obtienen por defecto de la unidad urbana seleccionada en Tracasa. Verifique la cédula parcelaria para datos exactos.")
