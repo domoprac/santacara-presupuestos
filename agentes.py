@@ -1,58 +1,68 @@
-import requests
-from bs4 import BeautifulSoup # Necesitaremos añadir esta librería
+import streamlit as st
+from agentes import AgenteNavarra
 
-class AgenteNavarra:
-    def __init__(self, datos):
-        self.datos = datos
+# 1. Configuración de la página (DEBE IR PRIMERO)
+st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡")
 
-    def obtener_superficie_catastro(self, url_catastro):
-        """Busca la superficie real en el portal de Catastro de Navarra"""
-        try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            respuesta = requests.get(url_catastro, headers=headers, timeout=10)
-            soup = BeautifulSoup(respuesta.text, 'html.parser')
-            
-            # Buscamos en las tablas de la web de Tracasa
-            tablas = soup.find_all('table')
-            for tabla in tablas:
-                if "Superficie" in tabla.text:
-                    filas = tabla.find_all('tr')
-                    for fila in filas:
-                        celdas = fila.find_all('td')
-                        if len(celdas) >= 2 and "Construida" in celdas[0].text:
-                            # Extrae el número (ej: 110,00) y lo convierte a float
-                            valor = celdas[1].text.replace(',', '.').split()[0]
-                            return float(valor)
-            return 110.0 # Valor por defecto si no lo encuentra
-        except Exception as e:
-            print(f"Error en Catastro: {e}")
-            return 110.0
+st.title("🏡 Rehabilitación Casa del Médico - Santacara")
+st.markdown("---")
 
-    def obtener_precio_referencia(self):
-        url_repo = "https://raw.githubusercontent.com/domoprac/vivienda-pueblo-dinamica/main/presupuesto_base.json"
-        try:
-            respuesta = requests.get(url_repo, timeout=5)
-            return respuesta.json()['coste_m2_rehabilitacion']
-        except:
-            return 1200 
+# --- SIDEBAR: VARIABLES TÉCNICAS ---
+st.sidebar.header("📊 Datos de la Vivienda")
 
-    def calcular_subvenciones(self, coste_bruto):
-        detalles = []
-        ahorro_acumulado = 0
-        porcentaje_ayuda = 0.20 
-        
-        if self.datos['letra_actual'] >= 'E' and self.datos['letra_objetivo'] <= 'B':
-            porcentaje_ayuda = 0.70 
-            razon = f"Salto de eficiencia alto ({self.datos['letra_actual']} -> {self.datos['letra_objetivo']})"
-        else:
-            razon = "Mejora energética estándar"
+# Enlace de Tracasa
+url_catastro = "https://catastro.navarra.es/ref_catastral/unidades.aspx?C=220&PO=7&PA=1097&lang=es"
 
-        monto_pree = coste_bruto * porcentaje_ayuda
-        ahorro_acumulado += monto_pree
-        detalles.append({"nombre": "PREE 5000 Navarra", "monto": monto_pree, "razon": razon})
+# Botón para activar el Agente y que lea Tracasa
+if st.sidebar.button("🔍 Consultar Catastro (Tracasa)"):
+    # Creamos un agente temporal solo para buscar los m2
+    agente_busqueda = AgenteNavarra({})
+    m2_detectados = agente_busqueda.obtener_superficie_catastro(url_catastro)
+    st.session_state['m2_valor'] = m2_detectados
+    st.sidebar.success(f"¡Catastro leído! Superficie: {m2_detectados} m2")
 
-        if self.datos['placas']:
-            ahorro_acumulado += 3000 
-            detalles.append({"nombre": "Ayuda Autoconsumo IDAE", "monto": 3000, "razon": "Instalación fotovoltaica"})
+# Definir el valor de m2 (usa el de Tracasa si se ha pulsado el botón, si no 110.0)
+valor_inicial = st.session_state.get('m2_valor', 110.0)
+m2 = st.sidebar.number_input("Superficie útil (m2)", value=valor_inicial)
 
-        return ahorro_acumulado, detalles
+st.sidebar.subheader("Certificación Energética")
+letra_actual = st.sidebar.selectbox("Letra Actual", ["G", "F", "E", "D", "C"], index=2)
+letra_objetivo = st.sidebar.selectbox("Letra tras Reforma", ["A", "B", "C"], index=0)
+
+st.sidebar.subheader("Sistemas a Instalar")
+tiene_placas = st.sidebar.checkbox("Fotovoltaica + Baterías", value=True)
+tiene_clima = st.sidebar.checkbox("Suelo Radiante Eléctrico + ACS", value=True)
+
+# --- EJECUCIÓN DEL AGENTE ---
+datos_vivienda = {
+    "letra_actual": letra_actual,
+    "letra_objetivo": letra_objetivo,
+    "placas": tiene_placas
+}
+
+agente = AgenteNavarra(datos_vivienda)
+
+# El agente trae el precio del repo de Domoprac
+precio_m2_real = agente.obtener_precio_referencia()
+presupuesto_obra = m2 * precio_m2_real
+
+# El agente calcula subvenciones
+ahorro_total, detalles = agente.calcular_subvenciones(presupuesto_obra)
+coste_final = presupuesto_obra - ahorro_total
+
+# --- INTERFAZ DE RESULTADOS ---
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("Inversión Bruta", f"{presupuesto_obra:,.2f}€")
+    st.caption(f"Precio m² aplicado: {precio_m2_real:,.2f}€")
+
+with col2:
+    st.metric("Coste Neto Ayuntamiento", f"{coste_final:,.2f}€", 
+              delta=f"-{ahorro_total:,.2f}€ Ayudas", delta_color="normal")
+
+st.write("### 📝 Informe del Agente (Navarra)")
+for d in detalles:
+    st.info(f"**{d['nombre']}**: {d['monto']:,.2f}€ - {d['razon']}")
+
+st.markdown("---")
+st.caption("Agente conectado a Catastro de Navarra (Tracasa) y Repositorio Domoprac.")
