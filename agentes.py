@@ -1,16 +1,38 @@
 import requests
+from bs4 import BeautifulSoup # Necesitaremos añadir esta librería
 
 class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
 
+    def obtener_superficie_catastro(self, url_catastro):
+        """Busca la superficie real en el portal de Catastro de Navarra"""
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            respuesta = requests.get(url_catastro, headers=headers, timeout=10)
+            soup = BeautifulSoup(respuesta.text, 'html.parser')
+            
+            # Buscamos en las tablas de la web de Tracasa
+            tablas = soup.find_all('table')
+            for tabla in tablas:
+                if "Superficie" in tabla.text:
+                    filas = tabla.find_all('tr')
+                    for fila in filas:
+                        celdas = fila.find_all('td')
+                        if len(celdas) >= 2 and "Construida" in celdas[0].text:
+                            # Extrae el número (ej: 110,00) y lo convierte a float
+                            valor = celdas[1].text.replace(',', '.').split()[0]
+                            return float(valor)
+            return 110.0 # Valor por defecto si no lo encuentra
+        except Exception as e:
+            print(f"Error en Catastro: {e}")
+            return 110.0
+
     def obtener_precio_referencia(self):
-        """El agente mira el 'libro de precios' en el GitHub de Domoprac"""
         url_repo = "https://raw.githubusercontent.com/domoprac/vivienda-pueblo-dinamica/main/presupuesto_base.json"
         try:
             respuesta = requests.get(url_repo, timeout=5)
-            datos_repo = respuesta.json()
-            return datos_repo['coste_m2_rehabilitacion']
+            return respuesta.json()['coste_m2_rehabilitacion']
         except:
             return 1200 
 
@@ -30,8 +52,7 @@ class AgenteNavarra:
         detalles.append({"nombre": "PREE 5000 Navarra", "monto": monto_pree, "razon": razon})
 
         if self.datos['placas']:
-            ayuda_placas = 3000 
-            ahorro_acumulado += ayuda_placas
-            detalles.append({"nombre": "Ayuda Autoconsumo IDAE", "monto": ayuda_placas, "razon": "Instalación de paneles fotovoltaicos"})
+            ahorro_acumulado += 3000 
+            detalles.append({"nombre": "Ayuda Autoconsumo IDAE", "monto": 3000, "razon": "Instalación fotovoltaica"})
 
         return ahorro_acumulado, detalles
