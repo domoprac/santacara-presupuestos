@@ -1,38 +1,66 @@
 import streamlit as st
 from agentes import AgenteNavarra
 
+# Configuración de la página
 st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡")
 
-st.title("🚀 Rehabilitación Sostenible: Casa del Médico")
-st.subheader("Municipio: Santacara (Navarra)")
+st.title("🏡 Rehabilitación Casa del Médico - Santacara")
+st.markdown("---")
 
-# Sidebar para ajustes técnicos
-st.sidebar.header("Configuración de Obra")
-m2 = st.sidebar.number_input("Metros cuadrados", value=110)
-coste_m2 = st.sidebar.slider("Coste m2 construcción (Modular)", 800, 1500, 1100)
+# --- SIDEBAR: VARIABLES TÉCNICAS (Entradas del usuario) ---
+st.sidebar.header("📊 Datos de la Vivienda")
+m2 = st.sidebar.number_input("Superficie útil (m2)", value=110)
 
-coste_total_bruto = m2 * coste_m2
+st.sidebar.subheader("Certificación Energética")
+letra_actual = st.sidebar.selectbox("Letra Actual", ["G", "F", "E", "D", "C"], index=2)
+letra_objetivo = st.sidebar.selectbox("Letra tras Reforma", ["A", "B", "C"], index=0)
 
-# Datos para el Agente
+st.sidebar.subheader("Sistemas a Instalar")
+tiene_placas = st.sidebar.checkbox("Fotovoltaica + Baterías", value=True)
+tiene_clima = st.sidebar.checkbox("Suelo Radiante Eléctrico + ACS", value=True)
+
+# --- EJECUCIÓN DEL AGENTE (Lógica y Conexión) ---
+# 1. Preparamos los datos para el agente
 datos_vivienda = {
     "municipio": "Santacara",
     "poblacion_menor_5000": True,
-    "propiedad": "Municipal"
+    "letra_actual": letra_actual,
+    "letra_objetivo": letra_objetivo,
+    "placas": tiene_placas
 }
 
-# Ejecutar Agente
+# 2. Inicializamos el agente
 agente = AgenteNavarra(datos_vivienda)
-coste_final, desglose = agente.calcular_presupuesto_neto(coste_total_bruto)
 
-# Visualización de resultados
+# 3. El agente obtiene el precio de referencia (desde el repo de Domoprac o por defecto)
+precio_m2_real = agente.obtener_precio_referencia()
+
+# 4. Cálculo del presupuesto bruto basado en el dato del agente
+presupuesto_obra = m2 * precio_m2_real
+
+# 5. El agente calcula las subvenciones aplicables en Navarra
+ahorro_total, detalles = agente.calcular_subvenciones(presupuesto_obra)
+
+# 6. Resultado final
+coste_final = presupuesto_obra - ahorro_total
+
+# --- INTERFAZ DE RESULTADOS (Lo que ve el usuario) ---
 col1, col2 = st.columns(2)
 with col1:
-    st.metric("Coste Bruto", f"{coste_total_bruto:,.2f}€")
+    st.metric("Inversión Bruta", f"{presupuesto_obra:,.2f}€")
+    st.caption(f"Precio m² aplicado: {precio_m2_real:,.2f}€ (vía Repo/Agente)")
+
 with col2:
-    st.metric("Coste Neto (Con Ayudas)", f"{coste_final:,.2f}€", delta=f"-{(coste_total_bruto-coste_final):,.2f}€")
+    st.metric("Coste Neto Ayuntamiento", f"{coste_final:,.2f}€", 
+              delta=f"-{ahorro_total:,.2f}€ Subvencionado", delta_color="normal")
 
-st.write("### 📋 Desglose de Subvenciones Aplicadas")
-for item in desglose:
-    st.success(item)
+st.write("### 📝 Desglose del Agente de Subvenciones")
+for d in detalles:
+    st.info(f"**{d['nombre']}**: {d['monto']:,.2f}€ ({d['razon']})")
 
-st.info("💡 Este presupuesto se actualiza automáticamente según el repositorio de Domoprac y el BON.")
+# Alerta de éxito si hay un buen salto de eficiencia
+if letra_actual > "D" and letra_objetivo <= "B":
+    st.success("✅ **Bonus detectado:** El salto de letra energética cumple los requisitos para la ayuda máxima en Navarra.")
+
+st.markdown("---")
+st.caption("Esta herramienta utiliza agentes para validar precios del repositorio Domoprac y normativas del BON.")
