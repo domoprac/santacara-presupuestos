@@ -1,51 +1,58 @@
 import streamlit as st
 from agentes import AgenteNavarra
 
-st.set_page_config(page_title="Santacara Sostenible", page_icon="🏡", layout="wide")
+# Configuración
+st.set_page_config(page_title="Santacara Inteligente", page_icon="🤖", layout="wide")
 
-st.title("🏡 Buscador de Ayudas - Catastro de Navarra")
+st.title("🏡 Santacara Sostenible + Copiloto IA")
+st.markdown("Cálculo de rehabilitaciones con soporte de Inteligencia Artificial local (Ollama).")
 st.markdown("---")
 
-# --- SIDEBAR: BUSCADOR REAL ---
-st.sidebar.header("🔍 Identificación de la Finca")
-st.sidebar.info("Introduce los códigos de Tracasa")
+# --- SIDEBAR: ENTRADA DE DATOS ---
+st.sidebar.header("🔍 Localización en Catastro")
+c_muni = st.sidebar.text_input("Cód. Municipio", "220")
+c_pol = st.sidebar.text_input("Polígono", "7")
+c_par = st.sidebar.text_input("Parcela", "1097")
 
-# Datos por defecto de la Casa del Médico
-cod_muni = st.sidebar.text_input("Código Municipio (Santacara = 220)", value="220")
-poligono = st.sidebar.text_input("Polígono", value="7")
-parcela = st.sidebar.text_input("Parcela", value="1097")
+if st.sidebar.button("🔍 Consultar Catastro"):
+    with st.spinner("Accediendo a Tracasa..."):
+        m2_cat = AgenteNavarra({}).obtener_superficie_catastro(c_muni, c_pol, c_par)
+        st.session_state['m2_valor'] = m2_cat
+        st.sidebar.success(f"Superficie detectada: {m2_cat} m2")
 
-if st.sidebar.button("🔍 Consultar Superficie"):
-    with st.spinner("El Agente está accediendo a Tracasa..."):
-        agente_temp = AgenteNavarra({})
-        # Le pasamos los datos que has escrito en los cuadros
-        m2_detectados = agente_temp.obtener_superficie_catastro(cod_muni, poligono, parcela)
-        st.session_state['m2_app'] = m2_detectados
-        st.sidebar.success(f"Detectados: {m2_detectados} m2")
+m2 = st.sidebar.number_input("Superficie (m2)", value=st.session_state.get('m2_valor', 110.0))
+l_act = st.sidebar.selectbox("Certificación Actual", ["G", "F", "E", "D"], index=2)
+l_obj = st.sidebar.selectbox("Objetivo tras reforma", ["A", "B", "C"], index=0)
+placas = st.sidebar.checkbox("Incluir Placas Fotovoltaicas", value=True)
 
-# Valor final para el cálculo
-m2 = st.sidebar.number_input("Metros cuadrados confirmados", value=st.session_state.get('m2_app', 110.0))
+# --- PROCESAMIENTO ---
+datos_vivienda = {"letra_actual": l_act, "letra_objetivo": l_obj, "placas": placas}
+agente = AgenteNavarra(datos_vivienda)
 
-st.sidebar.subheader("Reforma prevista")
-l_act = st.sidebar.selectbox("Eficiencia Actual", ["G", "F", "E", "D", "C"], index=2)
-l_obj = st.sidebar.selectbox("Eficiencia Objetivo", ["A", "B", "C"], index=0)
-placas = st.sidebar.checkbox("¿Instalará Placas?", value=True)
+# Obtener precios y calcular
+precio_base = agente.obtener_precio_referencia()
+presupuesto_total = m2 * precio_base
+ayuda_total, desglose = agente.calcular_subvenciones(presupuesto_total)
 
-# --- CÁLCULOS ---
-datos_obra = {"letra_actual": l_act, "letra_objetivo": l_obj, "placas": placas}
-agente = AgenteNavarra(datos_obra)
+# --- RESULTADOS VISUALES ---
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Inversión Bruta", f"{presupuesto_total:,.2f}€")
+with col2:
+    st.metric("Subvenciones", f"{ayuda_total:,.2f}€")
+with col3:
+    st.metric("Inversión Neta", f"{presupuesto_total - ayuda_total:,.2f}€", delta_color="normal")
 
-precio_m2 = agente.obtener_precio_referencia()
-total_obra = m2 * precio_m2
-ayuda_total, desglose = agente.calcular_subvenciones(total_obra)
+st.markdown("---")
 
-# --- RESULTADOS ---
-c1, c2 = st.columns(2)
-with c1:
-    st.metric("Presupuesto de Obra", f"{total_obra:,.2f}€")
-with c2:
-    st.metric("Coste tras Subvenciones", f"{total_obra - ayuda_total:,.2f}€", delta=f"-{ayuda_total:,.2f}€")
+# --- SECCIÓN DE IA ---
+st.subheader("🤖 Informe del Copiloto IA")
+if st.button("Generar Explicación Inteligente"):
+    with st.spinner("Llama 3.2 está analizando el proyecto..."):
+        informe_ia = agente.explicar_con_ia(presupuesto_total, ayuda_total)
+        st.write(informe_ia)
 
-st.write("### 📝 Desglose del Agente")
-for d in desglose:
-    st.info(f"**{d['nombre']}**: {d['monto']:,.2f}€ ({d['razon']})")
+st.markdown("---")
+st.write("### 📋 Detalles Técnicos de las Ayudas")
+for item in desglose:
+    st.info(f"**{item['nombre']}**: {item['monto']:,.2f}€  \n*{item['razon']}*")
