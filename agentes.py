@@ -5,9 +5,9 @@ import google.generativeai as genai
 class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
-        # Configuramos la IA de Google (Gratis y externa)
-        # Puedes obtener tu clave en: https://aistudio.google.com/app/apikey
+        # CONFIGURACIÓN: Pega tu clave aquí abajo entre las comillas
         self.api_key = "AIzaSyDDmQXtx34tEg014lYxTkCUCiVUgxn2kNI" 
+        
         try:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel('gemini-1.5-flash')
@@ -48,18 +48,21 @@ class AgenteNavarra:
         return monto, detalles
 
     def explicar_con_ia(self, presupuesto, ayuda):
-        if self.api_key == "TU_API_KEY_AQUI":
-            return "⚠️ Falta configurar la API Key de Google (es gratis)."
+        if "AIza" not in self.api_key:
+            return "⚠️ Falta configurar la API Key de Google en agentes.py"
         
         prompt = f"""
-        Analiza como experto en Santacara:
-        - Inversión: {presupuesto:,.2f}€
-        - Ayudas: {ayuda:,.2f}€
-        - Mejora: {self.datos['letra_actual']} a {self.datos['letra_objetivo']}
-        Resume en 3 puntos por qué es una buena inversión.
+        Actúa como un experto en eficiencia energética y consultor del Ayuntamiento de Santacara.
+        Analiza estos datos de rehabilitación:
+        - Presupuesto bruto: {presupuesto:,.2f}€
+        - Subvenciones estimadas: {ayuda:,.2f}€
+        - Mejora de certificado: de {self.datos['letra_actual']} a {self.datos['letra_objetivo']}
+        
+        Escribe un informe breve de 3 puntos explicando por qué es una inversión 
+        estratégica para el pueblo. Sé profesional y utiliza un tono motivador.
         """
         try:
             response = self.model.generate_content(prompt)
             return response.text
         except Exception as e:
-            return f"❌ Error de IA en la nube: {str(e)}"
+            return f"❌ Error en la IA (Nube): {str(e)}"
