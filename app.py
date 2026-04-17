@@ -38,3 +38,32 @@ if st.button("🤖 Generar Informe IA"):
     with st.spinner("Groq está pensando a toda velocidad..."):
         texto = agente.explicar_con_ia(presupuesto, ayuda)
         st.write(texto)
+# --- PANEL DE RESULTADOS VISUAL ---
+st.subheader("📊 Resumen Económico")
+
+# Fila de métricas principales
+col1, col2, col3 = st.columns(3)
+
+con_ayuda = presupuesto - ayuda_total
+porcentaje_ahorro = (ayuda_total / presupuesto) * 100
+
+col1.metric("Presupuesto Total", f"{presupuesto:,.2f}€")
+col2.metric("Subvención (Ahorro)", f"{ayuda_total:,.2f}€", f"{porcentaje_ahorro:.0f}%", delta_color="normal")
+col3.metric("Coste Neto Vecino", f"{con_ayuda:,.2f}€", "- Subvención", delta_color="inverse")
+
+# Barra de progreso visual para mostrar cuánto cubre la ayuda
+st.write(f"**Cobertura de la subvención:** {porcentaje_ahorro:.1f}% del total")
+st.progress(porcentaje_ahorro / 100)
+
+# Un pequeño cuadro resaltado con el ahorro mensual estimado (opcional/aproximado)
+ahorro_estimado_mes = (presupuesto * 0.15) / 12 # Estimación lógica de ahorro en factura
+st.success(f"💡 **Impacto estimado:** Esta reforma podría reducir tu factura energética unos **{ahorro_estimado_mes:,.2f}€/mes** adicionales.")
+
+st.markdown("---")
+
+# El botón de la IA debajo
+if st.button("🤖 Generar Informe Estratégico"):
+    with st.spinner("Groq analizando datos..."):
+        # Usamos markdown para que el informe se vea con negritas y títulos
+        texto = agente.explicar_con_ia(presupuesto, ayuda_total)
+        st.markdown(texto)
