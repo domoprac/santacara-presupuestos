@@ -1,14 +1,4 @@
 streamlit
 requests
 beautifulsoup4
-
-# IA básica (Ollama)
-langchain
 langchain-community
-
-# embeddings / RAG
-chromadb
-
-# utilidades
-python-dotenv
-tqdm
