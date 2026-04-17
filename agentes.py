@@ -10,6 +10,71 @@ class AgenteNavarra:
         
         try:
             genai.configure(api_key=self.api_key)
+            # Usamos 'gemini-1.5-flash' que es el estándar actual
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        except Exception:
+            self.model = None
+
+    def obtener_superficie_catastro(self, cod_muni, pol, par):
+        """Extrae la superficie de Tracasa con seguridad y headers."""
+        url = f"https://catastro.navarra.es/ref_catastral/unidades.aspx?C={cod_muni}&PO={pol}&PA={par}&lang=es"
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            res = requests.get(url, headers=headers, timeout=10)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            
+            for td in soup.find_all('td'):
+                texto = td.get_text(strip=True)
+                if "Construida" in texto or "Total" in texto:
+                    siguiente = td.find_next('td')
+                    if siguiente:
+                        valor_raw = siguiente.get_text(strip=True)
+                        valor_limpio = valor_raw.replace(',', '.').split()[0]
+                        return float(valor_limpio)
+            return 110.0
+        except Exception:
+            return 110.0
+
+    def obtener_precio_referencia(self):
+        url = "https://raw.githubusercontent.com/domoprac/vivienda-pueblo-dinamica/main/presupuesto_base.json"
+        try:
+            res = requests.get(url, timeout=5)
+            precio = res.json().get('coste_m2_rehabilitacion', 1200)
+            return float(precio)
+        except:
+            return 1200.0
+
+    def calcular_subvenciones(self, coste):
+        l_act = self.datos.get('letra_actual', 'E')
+        l_obj = self.datos.get('letra_objetivo', 'A')
+        porcentaje = 0.70 if l_act >= 'E' and l_obj <= 'B' else 0.20
+        monto = coste * porcentaje
+        detalles = [{"nombre": "Ayuda Navarra", "monto": monto, "razon": "Eficiencia"}]
+        if self.datos.get('placas'):
+            monto += 3000.0
+            detalles.append({"nombre": "Bonus Solar", "monto": 3000.0, "razon": "Fotovoltaica"})
+        return monto, detalles
+
+    def explicar_con_ia(self, presupuesto, ayuda):
+        if "AIza" not in self.api_key:
+            return "⚠️ API Key no válida detectada."
+        
+        prompt = f"""Actúa como experto en Santacara. 
+        Explica por qué invertir {presupuesto}€ con una ayuda de {ayuda}€ 
+        para pasar de letra {self.datos['letra_actual']} a {self.datos['letra_objetivo']} 
+        es excelente. Responde en 3 frases cortas."""
+        
+        try:
+            # Forzamos la llamada sin especificar versión de API para evitar el 404
+            response = self.model.generate_content(prompt)
+            if response and response.text:
+                return response.text
+            return "La IA no devolvió texto."
+        except Exception as e:
+            return f"❌ Error de IA: {str(e)}"
+        
+        try:
+            genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel('gemini-1.5-flash')
         except Exception:
             self.model = None
