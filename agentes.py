@@ -7,7 +7,7 @@ class AgenteNavarra:
         self.datos = datos
         # Configuramos la IA de Google (Gratis y externa)
         # Puedes obtener tu clave en: https://aistudio.google.com/app/apikey
-        self.api_key = "TU_API_KEY_AQUI" 
+        self.api_key = "AIzaSyDDmQXtx34tEg014lYxTkCUCiVUgxn2kNI" 
         try:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel('gemini-1.5-flash')
