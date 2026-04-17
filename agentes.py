@@ -5,14 +5,16 @@ import google.generativeai as genai
 class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
-        # 🔑 PEGA TU API KEY AQUÍ
-        self.api_key = "AIzaSyDDmQXtx34tEg014lYxTkCUCiVUgxn2kNI" 
+        # Tu clave de la captura de pantalla
+        self.api_key = "AQ.Ab8RN6Ijb_W4luwBxgTQ6IW9zS3CyD05eMj3j9Cv2fU4JsLphA" 
         
         try:
+            # Configuramos la conexión
             genai.configure(api_key=self.api_key)
-            # Cambiamos a Pro, que es más estable ante errores 404
-            self.model = genai.GenerativeModel('gemini-1.5-pro')
-        except Exception:
+            # Usamos gemini-1.5-flash que es el más rápido y compatible
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        except Exception as e:
+            print(f"Error al configurar genai: {e}")
             self.model = None
 
     def obtener_superficie_catastro(self, cod_muni, pol, par):
@@ -23,10 +25,10 @@ class AgenteNavarra:
             soup = BeautifulSoup(res.text, 'html.parser')
             for td in soup.find_all('td'):
                 if "Construida" in td.get_text() or "Total" in td.get_text():
-                    siguiente = td.find_next('td')
-                    if siguiente:
-                        valor = siguiente.get_text(strip=True).replace(',', '.').split()[0]
-                        return float(valor)
+                    sig = td.find_next('td')
+                    if sig:
+                        v = sig.get_text(strip=True).replace(',', '.').split()[0]
+                        return float(v)
             return 110.0
         except:
             return 110.0
@@ -42,8 +44,8 @@ class AgenteNavarra:
     def calcular_subvenciones(self, coste):
         l_act = self.datos.get('letra_actual', 'E')
         l_obj = self.datos.get('letra_objetivo', 'A')
-        porcentaje = 0.70 if l_act >= 'E' and l_obj <= 'B' else 0.20
-        monto = coste * porcentaje
+        porc = 0.70 if l_act >= 'E' and l_obj <= 'B' else 0.20
+        monto = coste * porc
         detalles = [{"nombre": "Ayuda Navarra", "monto": monto, "razon": "Eficiencia"}]
         if self.datos.get('placas'):
             monto += 3000.0
@@ -51,17 +53,17 @@ class AgenteNavarra:
         return monto, detalles
 
     def explicar_con_ia(self, presupuesto, ayuda):
-        if not self.api_key or "AIza" not in self.api_key:
-            return "⚠️ Error: API Key no configurada correctamente."
-        
         prompt = f"""Escribe un informe de 3 frases para el Ayuntamiento de Santacara. 
-        Inversión: {presupuesto}€. Ayuda: {ayuda}€. 
+        Inversión: {presupuesto}€, Ayuda: {ayuda}€. 
         Mejora de letra {self.datos['letra_actual']} a {self.datos['letra_objetivo']}. 
         Explica por qué es una buena decisión."""
         
         try:
-            # Generación simple
+            # Intentamos la generación
             response = self.model.generate_content(prompt)
             return response.text
         except Exception as e:
-            return f"❌ Error crítico de IA: {str(e)}"
+            # Si da error 404, informamos de qué puede ser
+            if "404" in str(e):
+                return "❌ Error 404: La API de Gemini no está activa para esta clave en Google Cloud Console."
+            return f"❌ Error de IA: {str(e)}"
