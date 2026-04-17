@@ -1,26 +1,28 @@
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
-        # Tu clave de la captura de pantalla
-        self.api_key = "AQ.Ab8RN6Ijb_W4luwBxgTQ6IW9zS3CyD05eMj3j9Cv2fU4JsLphA" 
+        # Tu clave AQ de la captura
+        self.api_key = "AQ.Ab8RN6J0xuNIVoGlxF3TemgZfcbkZEpxbAXxNrwSx3nSL_oINw" 
         
         try:
-            # Configuramos la conexión
-            genai.configure(api_key=self.api_key)
-            # Usamos gemini-1.5-flash que es el más rápido y compatible
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            # LangChain gestiona mejor las claves tipo AQ/OAuth
+            self.llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=self.api_key,
+                temperature=0.7
+            )
         except Exception as e:
-            print(f"Error al configurar genai: {e}")
-            self.model = None
+            print(f"Error inicializando LLM: {e}")
+            self.llm = None
 
     def obtener_superficie_catastro(self, cod_muni, pol, par):
         url = f"https://catastro.navarra.es/ref_catastral/unidades.aspx?C={cod_muni}&PO={pol}&PA={par}&lang=es"
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            headers = {'User-Agent': 'Mozilla/5.0'}
             res = requests.get(url, headers=headers, timeout=10)
             soup = BeautifulSoup(res.text, 'html.parser')
             for td in soup.find_all('td'):
@@ -53,17 +55,17 @@ class AgenteNavarra:
         return monto, detalles
 
     def explicar_con_ia(self, presupuesto, ayuda):
-        prompt = f"""Escribe un informe de 3 frases para el Ayuntamiento de Santacara. 
+        if not self.llm:
+            return "⚠️ IA no configurada."
+        
+        prompt = f"""Como experto en Santacara, analiza:
         Inversión: {presupuesto}€, Ayuda: {ayuda}€. 
         Mejora de letra {self.datos['letra_actual']} a {self.datos['letra_objetivo']}. 
-        Explica por qué es una buena decisión."""
+        Resume en 3 puntos por qué es positivo."""
         
         try:
-            # Intentamos la generación
-            response = self.model.generate_content(prompt)
-            return response.text
+            # Invocación estilo LangChain
+            response = self.llm.invoke(prompt)
+            return response.content
         except Exception as e:
-            # Si da error 404, informamos de qué puede ser
-            if "404" in str(e):
-                return "❌ Error 404: La API de Gemini no está activa para esta clave en Google Cloud Console."
             return f"❌ Error de IA: {str(e)}"
