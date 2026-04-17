@@ -1,13 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 
 class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
-        # Intentamos conectar con Ollama local (modelo Llama 3.2)
+        # Nueva forma oficial de conectar con Ollama
         try:
-            self.llm = Ollama(model="llama3.2")
+            self.llm = OllamaLLM(model="llama3.2")
         except Exception:
             self.llm = None
 
@@ -42,7 +42,6 @@ class AgenteNavarra:
         l_act = self.datos.get('letra_actual', 'E')
         l_obj = self.datos.get('letra_objetivo', 'A')
         
-        # 70% si hay salto grande, 20% si es estándar
         porcentaje = 0.70 if l_act >= 'E' and l_obj <= 'B' else 0.20
         monto = coste * porcentaje
         
@@ -67,7 +66,7 @@ class AgenteNavarra:
         - Mejora: de letra {self.datos['letra_actual']} a {self.datos['letra_objetivo']}
         
         Escribe un resumen ejecutivo de 3 puntos sobre por qué esta obra es vital para el municipio 
-        y cómo ayuda a la economía de los vecinos. Sé profesional y directo.
+        y cómo ayuda a la economía de los vecinos. Sé breve, profesional y directo.
         """
         try:
             return self.llm.invoke(prompt)
