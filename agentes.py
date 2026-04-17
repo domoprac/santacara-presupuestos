@@ -5,9 +5,9 @@ from groq import Groq
 class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
-        # 🔑 PEGA AQUÍ TU CLAVE DE GROQ (empieza por gsk_...)
+        # 🔑 PEGA TU CLAVE DE GROQ AQUÍ
         self.api_key = "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"
-
+        
         try:
             self.client = Groq(api_key=self.api_key)
         except Exception:
@@ -41,55 +41,60 @@ class AgenteNavarra:
         l_act = self.datos.get('letra_actual', 'E')
         l_obj = self.datos.get('letra_objetivo', 'A')
         
+        # Lógica Navarra: 70% por salto de E a A
         porc = 0.70 if l_act >= 'E' and l_obj <= 'B' else 0.20
         monto_rehab = coste * porc
         
         detalles = [{
-            "nombre": "Ayuda Rehabilitación (PRTR Navarra)", 
+            "nombre": "Ayuda Rehabilitación (Fondos PRTR)", 
             "monto": monto_rehab, 
-            "razon": f"Subvención por salto térmico {l_act} -> {l_obj}",
-            "tramite": "Expediente de Calificación Energética"
+            "razon": f"Subvención por mejora de envolvente y salto de letra {l_act} a {l_obj}",
+            "tramite": "Certificado de Eficiencia Energética Final"
         }]
         
         if self.datos.get('placas'):
             detalles.append({
-                "nombre": "Subvención Y (Fotovoltaica)", 
+                "nombre": "Subvención Y (Autoconsumo)", 
                 "monto": 3000.0, 
-                "razon": "Bonus Autoconsumo - Documento X",
+                "razon": "Instalación fotovoltaica vinculada al Documento X",
                 "fecha_limite": "31 de diciembre de 2026",
-                "tramite": "Registro Industrial Documento X"
+                "tramite": "Registro Industrial y Documentación Técnica"
             })
         
         monto_total = sum(d['monto'] for d in detalles)
         return monto_total, detalles
 
     def explicar_con_ia(self, presupuesto, ayuda_total, detalles):
-        """Esta función recibe self + 3 argumentos = 4 en total."""
         if not self.client:
-            return "⚠️ Error: Cliente Groq no configurado."
+            return "⚠️ Error: Cliente Groq no configurado en agentes.py"
         
-        texto_detalles = "\n".join([f"- {d['nombre']}: {d['monto']:,.2f}€ (Trámite: {d.get('tramite', 'N/A')}). Plazo: {d.get('fecha_limite', 'Abierto')}" for d in detalles])
+        txt_detalles = "\n".join([f"- {d['nombre']}: {d['monto']:,.2f}€ | Trámite: {d.get('tramite', 'N/A')} | Plazo: {d.get('fecha_limite', 'Abierto')}" for d in detalles])
         
         prompt = f"""
-        Actúa como consultor del Ayuntamiento de Santacara.
-        Inversión: {presupuesto:,.2f}€ | Ayuda: {ayuda_total:,.2f}€
+        ERES: Un consultor experto para el Ayuntamiento de Santacara, Navarra.
+        CASO: Rehabilitación energética integral (Letra {self.datos['letra_actual']} a {self.datos['letra_objetivo']}).
         
-        DESGLOSE:
-        {texto_detalles}
+        DATOS ECONÓMICOS:
+        - Inversión: {presupuesto:,.2f}€
+        - Ayuda Total: {ayuda_total:,.2f}€
+        - Neto Vecino: {presupuesto - ayuda_total:,.2f}€
         
-        TAREAS:
-        1. Explica que los 3.000€ son de la 'Subvención Y' y requieren el 'Documento X'.
-        2. Indica que la fecha límite es el '31 de diciembre de 2026'.
-        3. Valora el paso de letra {self.datos['letra_actual']} a {self.datos['letra_objetivo']}.
-        Responde de forma profesional y estructurada.
+        DESGLOSE ADMINISTRATIVO:
+        {txt_detalles}
+        
+        TU MISIÓN:
+        1. Explica que la ayuda de 3.000€ es la 'Subvención Y' y requiere presentar el 'Documento X'.
+        2. Alerta con urgencia de la fecha límite: '31 de diciembre de 2026'.
+        3. Valora positivamente el ahorro del {ayuda_total/presupuesto*100:.1f}%.
+        4. Usa un tono institucional, claro y directo. Estructura con negritas para resaltar datos clave.
         """
         
         try:
-            completion = self.client.chat.completions.create(
+            res = self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3
+                temperature=0.4
             )
-            return completion.choices[0].message.content
+            return res.choices[0].message.content
         except Exception as e:
             return f"❌ Error de Groq: {str(e)}"
