@@ -6,7 +6,7 @@ class AgenteNavarra:
     def __init__(self, datos):
         self.datos = datos
         # 🔑 PEGA TU CLAVE DE GROQ AQUÍ
-        self.api_key = "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"
+        self.api_key = "en archivo .evi"
         
         try:
             self.client = Groq(api_key=self.api_key)
